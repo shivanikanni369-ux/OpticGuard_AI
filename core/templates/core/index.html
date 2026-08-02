@@ -1,0 +1,527 @@
+{% extends 'core/base.html' %}
+
+{% block content %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+    body {
+        background: radial-gradient(circle at top right, #1e1e2f, #11111d);
+        color: #f4f4f6;
+        font-family: 'Segoe UI', Roboto, sans-serif;
+    }
+    .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+    }
+    .metric-box {
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        padding: 15px;
+    }
+    .break-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(10, 10, 18, 0.85);
+        backdrop-filter: blur(20px);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s ease-in-out;
+    }
+    .break-modal-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+    .break-card {
+        max-width: 500px;
+        width: 90%;
+        padding: 40px;
+        text-align: center;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+    .streak-badge {
+        font-size: 1.5rem;
+        font-weight: 800;
+        padding: 5px 15px;
+        border-radius: 30px;
+        background: linear-gradient(45deg, #ff9800, #ff5722);
+        box-shadow: 0 0 15px rgba(255, 152, 0, 0.5);
+        display: inline-block;
+        transition: transform 0.2s ease;
+    }
+</style>
+
+<div id="breakModal" class="break-modal-overlay">
+    <div class="card glass-card break-card">
+        <h2 class="fw-bold text-info mb-3">🧘‍♂️ Time to Stretch!</h2>
+        <p class="fs-5 text-white-50 mb-4">You've been sitting for a while. Let's practice the <strong>20-20-20 Rule</strong>:</p>
+        <div class="metric-box text-start mb-4 bg-dark">
+            <p class="mb-2">👀 <strong>Look away:</strong> Focus on an object 20 feet away.</p>
+            <p class="mb-2">⏱ <strong>Duration:</strong> Keep looking at it for 20 seconds.</p>
+            <p class="mb-0">🧍 <strong>Stand up:</strong> Roll your shoulders back and stretch your neck.</p>
+        </div>
+        <button id="closeBreakBtn" class="btn btn-success btn-lg fw-bold px-5 rounded-pill shadow-sm">
+            ✅ Finished Stretching
+        </button>
+    </div>
+</div>
+
+<div id="reportModal" class="break-modal-overlay">
+    <div class="card glass-card break-card">
+        <h2 class="fw-bold text-success mb-2">🏁 Session Completed!</h2>
+        <p class="text-white-50 mb-4">Here is your workspace physical health evaluation:</p>
+        
+        <div class="mb-4 py-2 border border-warning rounded bg-dark">
+            <small class="text-warning d-block fw-bold tracking-wide">EARNED ERGONOMIC TITLE</small>
+            <span id="repTitleRank" class="fs-4 fw-bold text-white">Calculating...</span>
+        </div>
+
+        <div class="row g-3 mb-4 text-center">
+            <div class="col-6">
+                <div class="metric-box bg-dark">
+                    <small class="text-muted d-block mb-1">TOTAL TIME</small>
+                    <span id="repTotalTime" class="fs-4 fw-bold text-info">0s</span>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="metric-box bg-dark">
+                    <small class="text-muted d-block mb-1">SLOUCH TIME</small>
+                    <span id="repSlouchTime" class="fs-4 fw-bold text-danger">0s</span>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="metric-box bg-dark">
+                    <small class="text-muted d-block mb-1">TOTAL BLINKS</small>
+                    <span id="repBlinks" class="fs-4 fw-bold text-warning">0</span>
+                </div>
+            </div>
+            <div class="col-6">
+                <div class="metric-box bg-dark">
+                    <small class="text-muted d-block mb-1">HIGHEST COMBO</small>
+                    <span id="repHighestStreak" class="fs-4 fw-bold text-success">0s</span>
+                </div>
+            </div>
+        </div>
+
+        <button id="closeReportBtn" class="btn btn-primary btn-lg fw-bold px-5 rounded-pill shadow-sm">
+            🔄 Start New Session
+        </button>
+    </div>
+</div>
+
+<div class="row justify-content-center mt-4">
+    <div class="col-lg-7 text-center mb-4">
+        <div class="card p-4 glass-card shadow-lg">
+            
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-3">
+                <h3 class="mb-0 fw-bold text-white">🧍 OpticGuard AI</h3>
+                <div class="text-end">
+                    <span class="badge bg-primary fs-6 py-2 px-3 rounded-pill">LVL <span id="uiLevel">1</span></span>
+                    <small class="d-block text-muted mt-1"><span id="uiXP">0</span> / 100 XP</small>
+                </div>
+            </div>
+
+            <div class="progress mb-4 bg-dark" style="height: 8px; border-radius: 10px;">
+                <div id="uiXPBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 0%"></div>
+            </div>
+
+            <div class="mb-2">
+                <div id="streakBadgeContainer" class="streak-badge d-none">
+                    🔥 STREAK: <span id="uiStreak">0</span>s (<span id="uiMultiplier">1</span>x XP)
+                </div>
+            </div>
+
+            <div id="btnWrapper" class="py-3">
+                <button id="startBtn" class="btn btn-primary btn-lg fw-bold px-5 py-3 rounded-pill shadow">
+                    🚀 Start Session Monitor
+                </button>
+                
+                <div id="controlPanel" class="d-none justify-content-center gap-3">
+                    <button id="pauseBtn" class="btn btn-warning btn-lg fw-bold px-4 py-2 rounded-pill shadow">
+                        ⏸ Pause Tracking
+                    </button>
+                    <button id="stopBtn" class="btn btn-danger btn-lg fw-bold px-4 py-2 rounded-pill shadow">
+                        🛑 Stop Session
+                    </button>
+                </div>
+            </div>
+
+            <div id="videoContainer" style="border-radius: 16px; overflow: hidden; display: none; max-width: 100%; border: 2px solid rgba(255,255,255,0.1); margin: 0 auto;">
+                <img id="videoStreamImg" src="" class="img-fluid w-100" crossorigin="anonymous">
+            </div>
+                
+           {% load static %}
+    <audio id="alertSound" src="{% static 'core/beep.mp3' %}" preload="auto"></audio>
+    
+    <h3 id="warningText" class="mt-4 fw-bold text-muted fs-4">System idling...</h3>
+</div>
+</div> <div class="col-lg-5 mb-4">
+    <div class="card p-4 glass-card shadow-lg h-100">
+        <h4 class="fw-bold text-white mb-4">📊 Live Analytics Dashboard</h4>
+        
+            <div class="row g-3 text-center mb-4">
+                <div class="col-3">
+                    <div class="metric-box px-1">
+                        <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.70rem;">Session</small>
+                        <span id="statSessionTime" class="fs-5 fw-bold text-info">0s</span>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="metric-box px-1">
+                        <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.70rem;">Slouching</small>
+                        <span id="statSlouchTime" class="fs-5 fw-bold text-danger">0s</span>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="metric-box px-1">
+                        <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.70rem;">Blinks</small>
+                        <span id="statBlinks" class="fs-5 fw-bold text-warning">0</span>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <div class="metric-box px-1">
+                        <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 0.70rem;">Score</small>
+                        <span id="statScore" class="fs-5 fw-bold text-success">100%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metric-box">
+                <h6 class="text-start text-white mb-3 text-muted">Real-Time Stability Tracker</h6>
+                <div style="position: relative; height: 180px; width: 100%;">
+                    <canvas id="liveChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const video = document.getElementById("videoStreamImg");
+    const sound = document.getElementById("alertSound");
+    const warning = document.getElementById("warningText");
+    const startBtn = document.getElementById("startBtn");
+    const btnWrapper = document.getElementById("btnWrapper");
+    const videoContainer = document.getElementById("videoContainer");
+
+    const controlPanel = document.getElementById("controlPanel");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const stopBtn = document.getElementById("stopBtn");
+    
+    const reportModal = document.getElementById("reportModal");
+    const closeReportBtn = document.getElementById("closeReportBtn");
+    const repTotalTime = document.getElementById("repTotalTime");
+    const repSlouchTime = document.getElementById("repSlouchTime");
+    const repBlinks = document.getElementById("repBlinks");
+    const repHighestStreak = document.getElementById("repHighestStreak");
+    const repTitleRank = document.getElementById("repTitleRank");
+
+    const breakModal = document.getElementById("breakModal");
+    const closeBreakBtn = document.getElementById("closeBreakBtn");
+
+    const statSessionTime = document.getElementById("statSessionTime");
+    const statSlouchTime = document.getElementById("statSlouchTime");
+    const statBlinks = document.getElementById("statBlinks");
+    const statScore = document.getElementById("statScore");
+
+    const uiLevel = document.getElementById("uiLevel");
+    const uiXP = document.getElementById("uiXP");
+    const uiXPBar = document.getElementById("uiXPBar");
+    const streakBadgeContainer = document.getElementById("streakBadgeContainer");
+    const uiStreak = document.getElementById("uiStreak");
+    const uiMultiplier = document.getElementById("uiMultiplier");
+
+    let badStart = null;
+    let soundPlayed = false;
+    let audioContext = null;
+    let monitoringInterval = null;
+
+    let totalSeconds = 0;
+    let slouchSeconds = 0;
+    let currentBlinkTotal = 0;
+    
+    let secondsSinceLastBreak = 0; 
+    let isBreakActive = false;
+    let isPaused = false; 
+
+    let currentStreak = 0;
+    let maxStreak = 0;
+    let currentXP = 0;
+    let currentLevel = 1;
+    let xpMultiplier = 1;
+
+    const ctxChart = document.getElementById('liveChart').getContext('2d');
+    const liveChart = new Chart(ctxChart, {
+        type: 'line',
+        data: {
+            labels: Array(20).fill(""), 
+            datasets: [{
+                label: 'Posture Stability',
+                data: Array(20).fill(100),
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13, 110, 253, 0.05)',
+                borderWidth: 3,
+                tension: 0.4,
+                fill: true,
+                pointRadius: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { display: false },
+                y: { min: 0, max: 100, grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: 'rgba(255, 255, 255, 0.5)' } }
+            }
+        }
+    });
+
+    startBtn.addEventListener("click", function () {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        video.src = "{% url 'video_feed' %}"; 
+        videoContainer.style.display = "block";
+        startBtn.classList.add("d-none");
+        controlPanel.classList.remove("d-none");
+        controlPanel.classList.add("d-flex");
+        warning.innerText = "🔄 Initializing camera telemetry stream...";
+
+        setTimeout(() => {
+            warning.className = "mt-4 fw-bold text-success fs-4";
+            warning.innerText = "✅ OpticGuard Active";
+            if (!monitoringInterval) {
+                monitoringInterval = setInterval(checkPosture, 1000);
+            }
+        }, 2000);
+    });
+
+    pauseBtn.addEventListener("click", function () {
+        if (!isPaused) {
+            isPaused = true;
+            pauseBtn.innerText = "▶ Resume Tracking";
+            pauseBtn.className = "btn btn-success btn-lg fw-bold px-4 py-2 rounded-pill shadow";
+            warning.className = "mt-4 fw-bold text-warning fs-4";
+            warning.innerText = "⏸ Session Paused";
+        } else {
+            isPaused = false;
+            pauseBtn.innerText = "⏸ Pause Tracking";
+            pauseBtn.className = "btn btn-warning btn-lg fw-bold px-4 py-2 rounded-pill shadow";
+            warning.className = "mt-4 fw-bold text-success fs-4";
+            warning.innerText = "✅ OpticGuard Active";
+        }
+    });
+
+    stopBtn.addEventListener("click", function () {
+        clearInterval(monitoringInterval);
+        monitoringInterval = null;
+        video.src = ""; 
+        videoContainer.style.display = "none";
+
+        repTotalTime.innerText = totalSeconds + "s";
+        repSlouchTime.innerText = slouchSeconds + "s";
+        repBlinks.innerText = currentBlinkTotal;
+        repHighestStreak.innerText = maxStreak + "s";
+        
+        let finalScoreValue = totalSeconds > 0 ? Math.round(((totalSeconds - slouchSeconds) / totalSeconds) * 100) : 100;
+        
+        if(finalScoreValue >= 90 && maxStreak >= 30) {
+            repTitleRank.innerText = "🏆 Ergonomic Warrior (Spine of Steel)";
+            repTitleRank.className = "fs-4 fw-bold text-success text-uppercase";
+        } else if (finalScoreValue >= 75) {
+            repTitleRank.innerText = "🛡️ Steady Sentinel (Good Progress)";
+            repTitleRank.className = "fs-4 fw-bold text-info text-uppercase";
+        } else {
+            repTitleRank.innerText = "⚠️ Slouching Rookie (Needs Practice)";
+            repTitleRank.className = "fs-4 fw-bold text-danger text-uppercase";
+        }
+
+        reportModal.classList.add("active");
+    });
+
+    closeReportBtn.addEventListener("click", function () {
+        totalSeconds = 0;
+        slouchSeconds = 0;
+        secondsSinceLastBreak = 0;
+        currentBlinkTotal = 0;
+        currentStreak = 0;
+        maxStreak = 0;
+        isPaused = false;
+        isBreakActive = false;
+
+        statSessionTime.innerText = "0s";
+        statSlouchTime.innerText = "0s";
+        statBlinks.innerText = "0";
+        statScore.innerText = "100%";
+        statScore.className = "fs-4 fw-bold text-success";
+        warning.className = "mt-4 fw-bold text-muted fs-4";
+        warning.innerText = "System idling...";
+        
+        streakBadgeContainer.classList.add("d-none");
+
+        liveChart.data.datasets[0].data = Array(20).fill(100);
+        liveChart.update();
+
+        reportModal.classList.remove("active");
+        controlPanel.classList.remove("d-flex");
+        controlPanel.classList.add("d-none");
+        startBtn.classList.remove("d-none");
+        pauseBtn.innerText = "⏸ Pause Tracking";
+        pauseBtn.className = "btn btn-warning btn-lg fw-bold px-4 py-2 rounded-pill shadow";
+    });
+
+    closeBreakBtn.addEventListener("click", function () {
+        breakModal.classList.remove("active");
+        secondsSinceLastBreak = 0; 
+        isBreakActive = false;     
+    });
+
+    function playBeep() {
+        if (!audioContext) return;
+        sound.play().catch(() => {
+            const osc = audioContext.createOscillator();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(800, audioContext.currentTime);
+            osc.connect(audioContext.destination);
+            osc.start();
+            setTimeout(() => osc.stop(), 300);
+        });
+    }
+
+    async function checkPosture() {
+        if (isBreakActive || isPaused) return;
+        if (video.naturalWidth === 0 || video.naturalHeight === 0) return;
+
+        try {
+            const response = await fetch("{% url 'get_posture_data' %}");
+            const data = await response.json();
+
+            totalSeconds++;
+            secondsSinceLastBreak++; 
+            statSessionTime.innerText = totalSeconds + "s";
+
+            currentBlinkTotal = data.blink_count;
+            statBlinks.innerText = currentBlinkTotal;
+
+            if (secondsSinceLastBreak >= 60) {
+                isBreakActive = true;
+                breakModal.classList.add("active");
+                playBeep(); 
+                return; 
+            }
+
+            let isUserMissing = (data.is_missing);
+            let isPostureBad = (data.is_bad && !data.is_missing);
+            let isPostureGood = (!data.is_bad && !data.is_missing);
+
+            if (data.is_eye_strain && isPostureGood) {
+                warning.className = "mt-4 fw-bold text-warning fs-4";
+                warning.innerText = "⚠️ Eye Strain: You are leaning too close to the screen!";
+                videoContainer.style.borderColor = "#ff9800"; 
+                updateGraph(60, '#ff9800'); 
+                
+                currentStreak = 0;
+                streakBadgeContainer.classList.add("d-none");
+            }
+            else if (isUserMissing || isPostureBad) {
+                slouchSeconds++;
+                statSlouchTime.innerText = slouchSeconds + "s";
+
+                currentStreak = 0;
+                streakBadgeContainer.classList.add("d-none");
+
+                if (!badStart) {
+                    badStart = Date.now();
+                    soundPlayed = false;
+                }
+
+                let seconds = (Date.now() - badStart) / 1000;
+                
+                if (isUserMissing) {
+                    warning.className = "mt-4 fw-bold text-danger fs-4";
+                    warning.innerText = "⚠️ Bad Posture: User left frame for " + seconds.toFixed(1) + "s";
+                    videoContainer.style.borderColor = "#ff9800"; 
+                    updateGraph(10, '#ff9800');
+                } else {
+                    warning.className = "mt-4 fw-bold text-danger fs-4";
+                    warning.innerText = "⚠ Bad Posture: Slouching for " + seconds.toFixed(1) + "s";
+                    videoContainer.style.borderColor = "#dc3545"; 
+                    updateGraph(20, '#dc3545');
+                }
+
+                if (seconds > 3 && !soundPlayed) {
+                    playBeep();
+                    soundPlayed = true;
+                }
+            } 
+            // ✅ FIXED SPACE: Proper syntax layout spacing setup 
+            else if (isPostureGood) {
+                badStart = null;
+                soundPlayed = false;
+                warning.className = "mt-4 fw-bold text-success fs-4";
+                warning.innerText = "✅ Good Posture";
+                videoContainer.style.borderColor = "#198754";
+                updateGraph(90, '#198754');
+
+                currentStreak++;
+                if (currentStreak > maxStreak) maxStreak = currentStreak;
+
+                if (currentStreak >= 5) {
+                    streakBadgeContainer.classList.remove("d-none");
+                    uiStreak.innerText = currentStreak;
+                    
+                    if (currentStreak >= 25) xpMultiplier = 3;
+                    else if (currentStreak >= 12) xpMultiplier = 2;
+                    else xpMultiplier = 1;
+
+                    uiMultiplier.innerText = xpMultiplier;
+                }
+
+                currentXP += (2 * xpMultiplier);
+                if (currentXP >= 100) {
+                    currentLevel++;
+                    currentXP = currentXP - 100;
+                    uiLevel.innerText = currentLevel;
+                    warning.innerText = "🎉 LEVEL UP! Reached Level " + currentLevel + "!";
+                }
+                uiXP.innerText = currentXP;
+                uiXPBar.style.width = currentXP + "%";
+            }
+
+            if (totalSeconds > 0) {
+                let currentScore = Math.round(((totalSeconds - slouchSeconds) / totalSeconds) * 100);
+                statScore.innerText = currentScore + "%";
+                
+                if(currentScore < 70) statScore.className = "fs-4 fw-bold text-danger";
+                else if(currentScore < 85) statScore.className = "fs-4 fw-bold text-warning";
+                else statScore.className = "fs-4 fw-bold text-success";
+            }
+
+        } catch (err) {
+            console.error("API link failure: ", err);
+        }
+    }
+
+    function updateGraph(scoreValue, colorHex) {
+        liveChart.data.labels.push("");
+        liveChart.data.datasets[0].data.push(scoreValue);
+        liveChart.data.datasets[0].borderColor = colorHex;
+        if(liveChart.data.labels.length > 20) {
+            liveChart.data.labels.shift();
+            liveChart.data.datasets[0].data.shift();
+        }
+        liveChart.update('none');
+    }
+});
+</script>
+{% endblock %}
