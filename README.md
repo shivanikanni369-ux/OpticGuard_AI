@@ -6,7 +6,7 @@ An AI-driven security and auditing system.
 
 ```bash
 # Clone repository
-git clone [https://github.com/shivanikanni369-ux/OpticGuard_AI.git](https://github.com/shivanikanni369-ux/OpticGuard_AI.git)
+git clone (https://github.com/shivanikanni369-ux/OpticGuard_AI.git)
 
 # Install dependencies
 pip install -r requirements.txt
